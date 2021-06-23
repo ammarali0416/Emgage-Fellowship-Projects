@@ -1,0 +1,93 @@
+---
+title: "Long Lapsed Donors"
+author: "Ammar Ali"
+date: "3/16/2021"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+These donors gave in 2013 / 2014 but have not given since
+
+```{r loading the data, include=FALSE}
+data <- read_csv("Founders Club Prospects - Long Lapsed Prospects.csv")
+colnames(data) <- c("Name", "Number.of.Donations", "Total.Amount", "Average.Amount")
+
+```
+
+## Step 1: Sorting by Number of donations
+
+```{r Step 1.1, echo=FALSE}
+hist1 <- ggplot(data, aes(x = Number.of.Donations)) +
+  geom_histogram() +
+  labs(title = "Distribution of Number of Donations") +
+  xlab("Number of Donations") +
+  ylab("Frequency")
+hist1
+
+```
+
+Majority of the donors from this time period only gave one or two times. This next graph
+look at the distribution of donations excluding one and two time donors
+
+```{r Step 1.2, echo=FALSE}
+data_1.2 <- data %>%
+  filter(Number.of.Donations > 2)
+
+hist2 <- ggplot(data_1.2, aes(x = Number.of.Donations)) +
+  geom_histogram() +
+  labs(title = "Distribution of Number of Donations", caption = "Filtered for donors with more than 2 donations.") +
+  xlab("Number of Donations") +
+  ylab("Frequency") +
+  scale_x_continuous(breaks = round(seq(min(data_1.2$Number.of.Donations), max(data_1.2$Number.of.Donations), by = 2),1))
+hist2
+```
+
+I will break down this dataset based on the number of donations: more than 2 donations, 2 donations, and 1 donation
+
+## Step 2: Donors with more than 2 donations.
+
+```{r step 2, echo=FALSE}
+DT::datatable(data_1.2)
+```
+A lot of these donors gave quite frequently in smaller amounts or a few times but with larger amounts. These seem like good founders club prospects just based on their intial enthusiam towards emgage.
+
+## Step 3: Donors with 2 donations
+
+```{r step 3, echo=FALSE}
+data_3 <- data %>%
+  filter(Number.of.Donations == 2) %>%
+  arrange(desc(Total.Amount))
+DT::datatable(data_3)
+
+```
+First 30 rows in this table look like good potential donors. Rows 1 -3  have Founders club potential.
+
+## Step 4: One Time Donors
+
+```{r step 4, echo=FALSE}
+data_4 <- data %>%
+  filter(Number.of.Donations == 1) %>%    
+  arrange(desc(Total.Amount))
+data_4 <- data_4[, -4]
+DT::datatable(data_4)
+
+hist_3 <- ggplot(data_4, aes(Total.Amount)) +
+  geom_histogram() +
+  labs(title = "Distribution of Total Donation Amounts") +
+  xlab("Total Donation Amount") +
+  ylab("Frequency")
+hist_3
+```
+
+
+The first 51 donors from this category gave a one time donation greater than or equal to 1000 
