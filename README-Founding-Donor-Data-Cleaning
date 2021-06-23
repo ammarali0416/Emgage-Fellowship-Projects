@@ -1,0 +1,4 @@
+This project consited of cleaning an excel file for my direct superior. The excel file consisted of multiple columns regarding donor data, including their name, number of donations,
+the total amount they donated, as well as other contact information. These donors did not already exist in Emgage's database, and donated to Emgage right at its founding.
+I read in the data from an excel file, deleted all of the irrelevant columns and rows, and created and new file for export with the contacts name, and also created a new columns
+that had the average donation amount for each contact.
