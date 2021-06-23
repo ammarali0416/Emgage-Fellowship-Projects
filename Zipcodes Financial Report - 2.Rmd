@@ -1,0 +1,363 @@
+---
+title: 'Zipcodes Financials Report #2'
+author: "Ammar Ali"
+date: "10/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(xlsx)
+library(ggplot2)
+library(readxl)
+library(data.table)
+
+##### Loading the data
+Emgage_Contributors <- read_csv("Contribution Aggregates Report.csv")
+colnames(Emgage_Contributors)[9] <- 'Zipcode'
+
+##### Adding the percentage of income donated by AGI
+Emgage_Contact_Zipcodes_Financial_Report <- read_excel("~/Emgage/Zipcodes Financial Data/Emgage Contact Zipcodes Financial Report.xlsx")
+
+
+### Certain income ranges dontae certain % of their AGI
+# < $25,000          : 12.3%
+# $25,000 - $50,000  : 6.8%
+# $50,000 - $75,000  : 4.8%
+# $75,000 - $100,000 : 3.8%
+# $100,000 - $200,000: 3%
+# $200,000 - $500,000: 2.6%
+# Source IRS STATISTICS OF INCOME 2014 via
+# https://www.fool.com/retirement/2016/11/27/the-average-americans-charitable-donations-how-do.aspx
+#
+# Creating the estimated donation column
+est_dono <- function(median_inc)
+{
+  vec <- vector()
+  for (inc in median_inc) { 
+      value = 0
+      if (is.na(inc) == TRUE) {
+          value = NA
+          vec <- c(vec, value)
+        }
+      else if (inc < 25000) {
+          value <- inc * 0.123
+          vec <- c(vec, value) #<---------------- empty vector is vec not v
+        }
+      else if (inc >= 25000 & inc < 50000){
+          value = inc * 0.068
+          vec <- c(vec, value) #<---------------------- c() method is much efficient then append, it just adds at the end
+        }
+      else if (inc >= 50000 & inc < 75000) {
+          value = inc * 0.048
+          vec <- c(vec, value)
+        }
+      else if (inc >= 75000 & inc < 100000) {
+          value = inc * 0.03
+          vec <- c(vec, value)
+        }
+      # else if (inc >= 10 & inc < 200000) # <----------------------- this one and below are same???
+      #   {
+      #     value = inc * 0.03
+      #     append(value, vec)
+      #   }
+      else if (inc >= 100000 & inc < 200000){
+          value = inc * 0.03
+          vec <- c(vec, value)
+        }
+      else if (inc >= 200000){
+          value = inc * 0.03
+          vec <- c(vec, value)
+        }
+  }
+
+  return(vec)
+}
+estimated_donoations <- est_dono(Emgage_Contact_Zipcodes_Financial_Report$`Median Household Income ($)`)
+Emgage_Contact_Zipcodes_Financial_Report$`Estimated Donation Max ($)` <- estimated_donoations
+Emgage_Contact_Zipcodes_Financial_Report$`Estimated Donation Max ($)` <- round(Emgage_Contact_Zipcodes_Financial_Report$`Estimated Donation Max ($)`)
+
+data <- Emgage_Contributors %>%
+  left_join(Emgage_Contact_Zipcodes_Financial_Report, by = 'Zipcode') %>%
+  select(VANID, `First Name`, `Last Name`, `Home City`, `Home State`, Zipcode, 
+         `Total Contribution Amount`, `Number Of Contributions`,
+         `Total Contribution Amount Last Year`, `Total Number of Contributions Last Year`,
+         `Median Household Income ($)`, `Estimated Donation Max ($)`)
+index_nonames <- which(is.na(data$`First Name`))
+data <- data[-index_nonames, ]
+
+#### Removing Duplicate, and merging them together fuck this will be hard
+duplicates_log <- duplicated(data$VANID) | duplicated(data$VANID, fromLast = TRUE)
+ind_duplicates <- which(duplicates_log == TRUE)
+duplicates <- data[ind_duplicates, ]
+VANID_dup <- unique(duplicates$VANID)
+data <- data[-ind_duplicates, ]
+
+# Loop takes the van ids of each duokicate record and combines the duplicate records
+# into one
+
+for (id in VANID_dup){
+  temp <- duplicates %>%
+    filter(VANID == id) 
+  row <- temp[1, ]
+  row[7] <- sum(temp[7])
+  row[8] <- sum(temp[8])
+  row[9] <- sum(temp[9])
+  row[10] <- sum(temp[10])
+  data <- rbind(data, row)
+} 
+
+
+##### Creating Table 1: Breakdown of zipcodes and their financials
+zip_financials <- setDT(data)[, .N, `Zipcode`]
+zip_financials <- zip_financials %>%
+                    left_join(Emgage_Contact_Zipcodes_Financial_Report, by = 'Zipcode')
+zip_financials <- zip_financials[, -4:-9]
+
+```
+
+# Background
+
+Based of people's income level, you can predict the percentage of what they will donate
+to charity. This report solely looks at Emgage Contributors' Zipcodes. The following table is IRS data from 2014 used for this analysis:
+
+```{r irs data, echo=FALSE}
+income_level <- c('< $25k', '$25k - $50k', '$50k - $75k', '$75k - $100k', '$100k - $200k', '$200k - $500k')
+income_level <- factor(income_level, levels = c('< $25k', '$25k - $50k', '$50k - $75k', '$75k - $100k', '$100k - $200k', '$200k - $500k'))
+
+cn_less25 <- zip_financials %>%
+  filter(`Median Household Income ($)` < 25000)
+cn_less25 <- cn_less25[`Median Household Income ($)` != -1]
+cn_less25 <- sum(cn_less25$N)
+
+cn_25to50 <- zip_financials %>% 
+            filter(`Median Household Income ($)` < 50000 & 
+                     `Median Household Income ($)` >= 25000)
+cn_25to50 <- cn_25to50[`Median Household Income ($)` != -1]
+cn_25to50 <- sum(cn_25to50$N)
+
+cn_50to75 <- zip_financials %>% 
+            filter(`Median Household Income ($)` < 75000 & 
+                     `Median Household Income ($)` >= 50000)
+cn_50to75 <- cn_50to75[`Median Household Income ($)` != -1]
+cn_50to75 <- sum(cn_50to75$N)
+
+cn_75to100 <- zip_financials %>% 
+            filter(`Median Household Income ($)` < 100000 & 
+                     `Median Household Income ($)` >= 75000)
+cn_75to100 <- cn_75to100[`Median Household Income ($)` != -1]
+cn_75to100 <- sum(cn_75to100$N)
+
+cn_100to200 <- zip_financials %>% 
+            filter(`Median Household Income ($)` < 200000 & 
+                     `Median Household Income ($)` >= 100000)
+cn_100to200 <- cn_100to200[`Median Household Income ($)` != -1]
+cn_100to200 <- sum(cn_100to200$N)
+
+cn_greater200 <- zip_financials %>%
+  filter(`Median Household Income ($)` >= 200000)
+cn_greater200 <- cn_greater200[`Median Household Income ($)` != -1]
+cn_greater200 <- sum(cn_greater200$N)
+
+irs_table <- data.frame(
+  'Income Level' = income_level,
+  'Percentage of Income Donated' = c('12.3%', '6.8%', '4.8%', '3.8%', '3%', '2.6%'),
+  'Total Contacts in Each Income Level' = c(cn_less25, cn_25to50, cn_50to75, cn_75to100,
+                                            cn_100to200, cn_greater200)
+)
+DT::datatable(irs_table)
+
+```
+
+## Step 1: The Distribution of Incomes
+
+The following is a histogram showing the distribution of the median income levels for contributing Zipcodes:
+
+```{r distribution, echo=FALSE}
+n_less25 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` < 25000)
+n_less25 <- n_less25[`Median Household Income ($)` != -1]
+n_less25 <- length(n_less25$`Median Household Income ($)`)
+
+n_25to50 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` < 50000 & 
+                     `Median Household Income ($)` >=25000)
+n_25to50 <- n_25to50[`Median Household Income ($)` != -1]
+n_25to50 <- length(n_25to50$`Median Household Income ($)`)
+
+n_50to75 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` < 75000 & 
+                     `Median Household Income ($)` >=50000)
+n_50to75 <- n_50to75[`Median Household Income ($)` != -1]
+n_50to75 <- length(n_50to75$`Median Household Income ($)`)
+
+n_75to100 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` < 100000 & 
+                     `Median Household Income ($)` >=75000)
+n_75to100 <- n_75to100[`Median Household Income ($)` != -1]
+n_75to100 <- length(n_75to100$`Median Household Income ($)`)
+
+n_100to200 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` < 200000 & 
+                     `Median Household Income ($)` >= 100000)
+n_100to200 <- n_100to200[`Median Household Income ($)` != -1]
+n_100to200 <- length(n_100to200$`Median Household Income ($)`)
+
+n_greater200 <-zip_financials %>% 
+            select(`Median Household Income ($)`) %>%
+            filter(`Median Household Income ($)` >= 200000)
+n_greater200 <- n_greater200[`Median Household Income ($)` != -1]
+n_greater200 <- length(n_greater200$`Median Household Income ($)`)
+
+n_incomes <- c(n_less25, n_25to50, n_50to75, n_75to100, n_100to200, n_greater200)
+
+inc_dist_table <- data.frame(
+  'Income Level' = income_level,
+  'Number of Zipcodes' = n_incomes
+)
+
+library(ggplot2)
+p<-ggplot(data = inc_dist_table, aes(x = `Income.Level`, y = `Number.of.Zipcodes`)) +
+  geom_bar(stat="identity")
+p
+
+```
+
+## Step 2: Determining Who Can Contribute More to Emgage
+We will look at the number of contributions, the total contribution amounts, 
+in comparison with the Median Income of their Zipcode
+ 
+### Table 1: Contacts in $200K+ Income Bracket
+``` {r Table 1}
+con_200 <- data %>%
+  filter(`Median Household Income ($)` >= 200000 & `Median Household Income ($)` != -1) %>%
+  mutate(`Average Contribution ($)` = round(`Total Contribution Amount` / `Number Of Contributions`))
+
+DT::datatable(con_200)
+```
+
+
+If you sort this table by Number of Contributions, you can see that majority of
+the contacts in this category have donated only 1, 2, or 3 times Emgage. From this category, I believe we ought to 
+at strengthen relationships with those who gave three or fewer times as they live
+in the wealthiest zipcodes out of our database.
+**No contacts in this category have total contributions that exceed $3K**
+
+### Table 2: Contacts in $200K+ Income Bracket with <= 3 Total Contributions
+```{r Table 2}
+tbl_2 <- con_200 %>%
+  filter(`Number Of Contributions` <= 3)
+DT::datatable(tbl_2)
+```
+
+### Table 3: Contacts in $100K-$200K Income Bracket Large Donors
+Those with total donation amounts greater than $10K. A few board members in here.
+```{r Table 3}
+tbl_3 <- data %>%
+  filter(`Median Household Income ($)` < 200000 & `Median Household Income ($)`
+         >= 100000) %>%
+  filter(`Total Contribution Amount` >= 10000) %>%
+  mutate(`Average Contribution ($)` = round(`Total Contribution Amount` / `Number Of Contributions`))
+  
+DT::datatable(tbl_3)
+```
+
+### Table 4: Contacts in $100K-$200K Income Bracket w/o Large Donors
+```{r Table 4, message=FALSE, warning=FALSE}
+tbl_4 <- data %>%
+  filter(`Median Household Income ($)` < 200000 & `Median Household Income ($)`
+         >= 100000) %>%
+  filter(`Total Contribution Amount` < 10000) %>%
+  mutate(`Average Contribution ($)` = round(`Total Contribution Amount` / `Number Of Contributions`))
+
+DT::datatable(tbl_4)
+tbl_4_hist <- ggplot(data = tbl_4, aes(tbl_4$`Total Contribution Amount`)) +
+  geom_histogram() +
+  xlab('Total Contribution Amount') +
+  ylab('Count') +
+  ggtitle('Distribution of Total Contributions in $100K-$200K Income Bracket')
+tbl_4_hist
+```
+
+From the histogram we can see that majority **(701 people)** of the contacts in this income bracket 
+have donated less than $2500 to Emgage
+
+
+### Table 4.1: Contacts in $100K-200K Income Bracket w/ Total Contributions less than $2500
+```{r Table 4.1, message=FALSE, warning=FALSE}
+tbl_4one <- tbl_4 %>%
+  filter(`Total Contribution Amount` <= 2500)
+
+DT::datatable(tbl_4one)
+tbl_4one_hist <- ggplot(data = tbl_4one, aes(tbl_4one$`Total Contribution Amount`)) +
+  geom_histogram(binwidth = 10) +
+  xlab('Total Contribution Amount') +
+  ylab('Count') +
+  ggtitle('Distribution of Total Contributions in $100K-$200K Income Bracket w/
+          <$2500 donated') +
+  scale_x_continuous(breaks = seq(0, 2500, by = 250))
+tbl_4one_hist
+```
+
+At least 600 people in this group have only given 1 time to Emgage. This group contains 
+a large amount of one time small dollar contributors. **390 people in this group have** 
+**given in total $100 or less to Emgage**. The average estimated donation max
+for this group is **$3830**.
+
+### Table 5: Contacts in $75K - $100K Income Bracket Large Donors
+```{r Table 5}
+tbl_5 <- data %>%
+  filter(`Median Household Income ($)` < 100000 & `Median Household Income ($)`
+         >= 75000) %>%
+  filter(`Total Contribution Amount` >= 10000) %>%
+  mutate(`Average Contribution ($)` = round(`Total Contribution Amount` / `Number Of Contributions`))
+
+DT::datatable(tbl_5)
+```
+
+### Table 6: Contacts in $75K-$100K Income Bracket w/o Large Donors
+```{r Table 6, message=FALSE, warning=FALSE}
+tbl_6 <- data %>%
+  filter(`Median Household Income ($)` < 100000 & `Median Household Income ($)`
+         >= 75000) %>%
+  filter(`Total Contribution Amount` < 10000) %>%
+  mutate(`Average Contribution ($)` = round(`Total Contribution Amount` / `Number Of Contributions`))
+
+DT::datatable(tbl_6)
+tbl_6_hist <- ggplot(data = tbl_6, aes(tbl_6$`Total Contribution Amount`)) +
+  geom_histogram() +
+  xlab('Total Contribution Amount') +
+  ylab('Count') +
+  ggtitle('Distribution of Total Contributions in $75K-$100K Income Bracket')
+tbl_6_hist
+```
+
+**629** contacts from this income bracket have given less than $2500 to Emgage. At least 500 of 
+the contacts in this group have given 1 time to Emgage
+
+### Table 6.1 Contacts in $75K-$100K Income Bracket w/ Total Contributions less than $2500
+```{r Table 6.1}
+tbl_6one <- tbl_6 %>%
+  filter(`Total Contribution Amount` < 2500)
+
+DT::datatable(tbl_6one)
+tbl_6one_hist <- ggplot(data = tbl_6one, aes(tbl_6one$`Total Contribution Amount`)) +
+  geom_histogram(binwidth = 10) +
+  xlab('Total Contribution Amount') +
+  ylab('Count') +
+  ggtitle('Distribution of Total Contributions in $75K-$100K Income Bracket w/
+          <$2500 donated') +
+  scale_x_continuous(breaks = seq(0, 2500, by = 250))
+tbl_6one_hist
+```
+
+**338** people in this group have donated $100 or less to Emgage. The average estimated
+donation max for this group is **$2717**.
