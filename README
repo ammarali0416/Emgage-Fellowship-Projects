@@ -1,0 +1,7 @@
+These scripts were used to reconcile all of the donations Emgage recieved every month. The database software Emgage used, called EveryAction, had the ability to lable individual
+donations with a source code, and allowed backend users to search for donations by filtering for source codes. These source codes were meant to track which Emgage chapters each 
+donation went to. Source codes were automatically applied to donations when a donor contributed through one of Emagage's online contribution forms.
+
+More than one source code would be used for a chapter state, and source codes also were used for multiple states. These scripts would input an excel file of all the donations for 
+a given month, seperate all the contacts by there respective states, and then calculate how much money each chapter and the National chapter brought in through board member donations,
+individual contributors, and from grant giving organizations.
