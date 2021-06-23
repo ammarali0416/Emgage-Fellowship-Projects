@@ -1,0 +1,4 @@
+This project was to enrich Emgage's contact database and apporximate the income levels of Emgage Donors based on public financial information regarding their zipcodes. 
+
+First, a Python file was used to websscrape zipcode information for all of the unique zipcodes present in Emgage's contact database. The financial information was then married to
+individual contacts and the entire database was then analyzed.
